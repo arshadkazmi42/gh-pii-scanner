@@ -11,7 +11,9 @@ EMAIL_REGEX = r'[-a-zA-Z\._]+[@](\w|\_|\-|\.)+[.]\w{2,3}'
 
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
-SEARCH_QUERY = '"{}"+"email"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx&type=Code&page='
+SEARCH_QUERY = '"{}"+"email"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec&type=Code&page='
+IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact']
+IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log']
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
 GH_TOKEN = None
@@ -157,7 +159,7 @@ def _search_content(url, content):
 
         print(f'Searching in {url}')
 
-        if not result:
+        if any(value in result for value in IGNORE_FILES):
             return False
 
         matches = _extract_emails(result)
@@ -165,20 +167,30 @@ def _search_content(url, content):
         if len(matches) == 0:
             return False
 
-        print_line = f'\n\nFound in {url}'
-        print(print_line)
-        _write_to_file(print_line)
+        domain = _get_domain()
+        
+        found_email_line = ''
 
         for match in matches:
 
-            if 'support' in match or 'help' in match or 'sales' in match or 'feedback' in match or 'enquiry' in match:
+            if domain not in match:
+                continue
+
+            if any(value in match for value in IGNORE_EMAILS):
                 continue
             
-            print_line = f'Found Email: {match}'
-            _write_to_file(print_line)
+            found_email_line = f'{found_email_line}Found Email: {match}\n'
+
+        if len(found_email_line) > 0:
+
+            print_line = f'\n\nFound in {url}'
             print(print_line)
-        
-        print('\n\n')
+            _write_to_file(print_line)
+
+            _write_to_file(found_email_line)
+            print(found_email_line)
+            
+            print('\n\n')
 
     except Exception as e:
         print(e)
