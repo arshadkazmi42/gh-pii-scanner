@@ -1,3 +1,5 @@
+from multiprocessing.pool import ThreadPool as Pool
+
 import re
 import requests
 import base64
@@ -9,11 +11,12 @@ import time
 EMAIL_REGEX = r'[-a-zA-Z\._]+[@](\w|\_|\-|\.)+[.]\w{2,3}'
 
 
+REQUEST_TIMEOUT = 20
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
-SEARCH_QUERY = '"{}"+"email"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec&type=Code&page='
-IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact']
-IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log']
+SEARCH_QUERY = '"{}"+"email"+"phone"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
+IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@']
+IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json']
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
 GH_TOKEN = None
@@ -91,13 +94,13 @@ def _get_url_result(url, token):
 
         _print(headers)
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
 
         # if rate limit reached
         # Check and wait for x seconds
         if response.status_code == 403:
             if _check_rate_limit(response):
-                response = requests.get(url)
+                response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
 
         if response.status_code != 200:
             _print(f'Failed with error code {response.status_code}')
@@ -159,7 +162,7 @@ def _search_content(url, content):
 
         print(f'Searching in {url}')
 
-        if any(value in result for value in IGNORE_FILES):
+        if any(value in url for value in IGNORE_FILES):
             return False
 
         matches = _extract_emails(result)
@@ -223,6 +226,23 @@ def _get_and_search_content(item, gh_token):
             _search_content(html_url, result['content'])
 
 
+def process_page(url, gh_token):
+
+    result = _get_url_result(url, gh_token)
+    
+    if result and 'items' in result:
+
+        pool = Pool(5)
+        
+        items = result['items']
+        for item in items:
+            pool.apply_async(_get_and_search_content, (item,gh_token,))
+
+        pool.daemon = True
+        pool.close()
+        pool.join()
+
+
 # MAIN CODE
 
 gh_token = _get_gh_token()
@@ -236,18 +256,16 @@ total_pages = _get_total_pages(url, gh_token)
 if total_pages > GH_MAX_PAGES:
     total_pages = GH_MAX_PAGES
 
+pool = Pool(5)
+
 for page_number in range(START_PAGE_NUMBER, total_pages):
     
     _print(page_number)
     print(f'Processing: {url}{page_number}')
 
-    result = _get_url_result(f'{url}{page_number}', gh_token)
-    
-    if result and 'items' in result:
-        
-        items = result['items']
-        for item in items:
-            
-            _get_and_search_content(item, gh_token)
+    pool.apply_async(process_page, (f'{url}{page_number}',gh_token,))
 
+pool.daemon = True
+pool.close()
+pool.join()
 
