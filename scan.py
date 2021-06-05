@@ -16,11 +16,11 @@ REQUEST_TIMEOUT = 40
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
 SEARCH_QUERY = '"{}"+"email"+"phone"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
-IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'john.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@']
+IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'jane.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@', 'example@', 'domains@']
 IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json', 'bugbounty', '.svn', 'inmotionhosting.com']
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
-MAX_THREADS = 5 
+MAX_THREADS = 1 
 GH_TOKEN = None
 DEBUG = False
 
