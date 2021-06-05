@@ -9,16 +9,18 @@ import time
 
 
 EMAIL_REGEX = r'[-a-zA-Z\._]+[@](\w|\_|\-|\.)+[.]\w{2,3}'
+PHONE_REGEX = r'(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4,5}'
 
 
-REQUEST_TIMEOUT = 20
+REQUEST_TIMEOUT = 40
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
 SEARCH_QUERY = '"{}"+"email"+"phone"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
-IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@']
-IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json']
+IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'john.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@']
+IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json', 'bugbounty', '.svn', 'inmotionhosting.com']
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
+MAX_THREADS = 5 
 GH_TOKEN = None
 DEBUG = False
 
@@ -61,6 +63,7 @@ def _get_gh_token():
     return args[2]
 
 def _check_rate_limit(response):
+
     if response.status_code == 403:
 
         if 'X-RateLimit-Remaining' in response.headers:
@@ -103,7 +106,8 @@ def _get_url_result(url, token):
                 response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
 
         if response.status_code != 200:
-            _print(f'Failed with error code {response.status_code}')
+            print(f'\nFailed with error code {response.status_code}\n')
+            print(response.text)
             return {}
             
         return response.json()
@@ -156,28 +160,24 @@ def _extract_emails(text):
 
 def _search_content(url, content):
     try:
+
+        if any(value in url for value in IGNORE_FILES):
+            return False
+
         _print(content)
         result = _decode_base_64(content)
         _print(str(result))
 
         print(f'Searching in {url}')
 
-        if any(value in url for value in IGNORE_FILES):
-            return False
-
         matches = _extract_emails(result)
 
         if len(matches) == 0:
             return False
 
-        domain = _get_domain()
-        
         found_email_line = ''
 
         for match in matches:
-
-            if domain not in match:
-                continue
 
             if any(value in match for value in IGNORE_EMAILS):
                 continue
@@ -232,7 +232,7 @@ def process_page(url, gh_token):
     
     if result and 'items' in result:
 
-        pool = Pool(5)
+        pool = Pool(MAX_THREADS)
         
         items = result['items']
         for item in items:
@@ -256,16 +256,10 @@ total_pages = _get_total_pages(url, gh_token)
 if total_pages > GH_MAX_PAGES:
     total_pages = GH_MAX_PAGES
 
-pool = Pool(5)
-
 for page_number in range(START_PAGE_NUMBER, total_pages):
     
     _print(page_number)
     print(f'Processing: {url}{page_number}')
 
-    pool.apply_async(process_page, (f'{url}{page_number}',gh_token,))
-
-pool.daemon = True
-pool.close()
-pool.join()
+    process_page(f'{url}{page_number}',gh_token)
 
