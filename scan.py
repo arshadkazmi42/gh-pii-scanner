@@ -175,9 +175,14 @@ def _search_content(url, content):
         if len(matches) == 0:
             return False
 
+        domain = _get_domain()
+
         found_email_line = ''
 
         for match in matches:
+
+            if domain not in match:
+                continue
 
             if any(value in match for value in IGNORE_EMAILS):
                 continue
