@@ -6,6 +6,7 @@ import base64
 import json
 import sys
 import time
+import random
 
 
 EMAIL_REGEX = r'[-a-zA-Z\._]+[@](\w|\_|\-|\.)+[.]\w{2,3}'
@@ -15,12 +16,12 @@ PHONE_REGEX = r'(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4,5}'
 REQUEST_TIMEOUT = 40
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
-SEARCH_QUERY = '"{}"+"email"+"phone"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
-IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'jane.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@', 'example@', 'domains@']
-IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json', 'bugbounty', '.svn', 'inmotionhosting.com']
+SEARCH_QUERY = '"{}"+"email"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
+IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'jane.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@', 'example@', 'domains@', 'api@', 'feeds', 'customer']
+IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json', 'bugbounty', '.svn', 'inmotionhosting.com', 'marketing']
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
-MAX_THREADS = 1 
+MAX_THREADS = 5 
 GH_TOKEN = None
 DEBUG = False
 
@@ -64,22 +65,27 @@ def _get_gh_token():
 
 def _check_rate_limit(response):
 
-    if response.status_code == 403:
+    if response.status_code == 403 or response.status_code == 429:
 
-        if 'X-RateLimit-Remaining' in response.headers:
-            limit_remaining = int(response.headers['X-RateLimit-Remaining'])
-            print(f'Rate limit remaining {limit_remaining}')
+        random_seconds = random.randint(300, 1000)
+        print(f'\n\nGitHub Search API rate limit reached. Sleeping for {random_seconds} seconds.\n\n')
+        time.sleep(random_seconds)
+        return True
 
-            if limit_remaining > 0:
-                return True
+        # if 'X-RateLimit-Remaining' in response.headers:
+        #     limit_remaining = int(response.headers['X-RateLimit-Remaining'])
+        #     print(f'Rate limit remaining {limit_remaining}')
 
-        if 'X-RateLimit-Reset' in response.headers:
-            reset_time = int(response.headers['X-RateLimit-Reset'])
-            current_time = int(time.time())
-            sleep_time = reset_time - current_time + 1
-            print(f'\n\nGitHub Search API rate limit reached. Sleeping for {sleep_time} seconds.\n\n')
-            time.sleep(sleep_time)
-            return True
+        #     if limit_remaining > 0:
+        #         return True
+
+        # if 'X-RateLimit-Reset' in response.headers:
+        #     reset_time = int(response.headers['X-RateLimit-Reset'])
+        #     current_time = int(time.time())
+        #     sleep_time = reset_time - current_time + 1
+        #     print(f'\n\nGitHub Search API rate limit reached. Sleeping for {sleep_time} seconds.\n\n')
+        #     time.sleep(sleep_time)
+        #     return True
     
     return False
 
