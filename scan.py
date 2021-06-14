@@ -10,18 +10,18 @@ import random
 
 
 EMAIL_REGEX = r'[-a-zA-Z\._]+[@](\w|\_|\-|\.)+[.]\w{2,3}'
-PHONE_REGEX = r'(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4,5}'
+PHONE_REGEX = r'\+(\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4,5}'
 
 
 REQUEST_TIMEOUT = 40
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
-SEARCH_QUERY = '"{}"+"email"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
-IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'jane.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@', 'example@', 'domains@', 'api@', 'feeds', 'customer']
-IGNORE_FILES = ['package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json', 'bugbounty', '.svn', 'inmotionhosting.com', 'marketing']
+SEARCH_QUERY = '"{}"+"phone"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
+IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'jane.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@', 'example@', 'domains@', 'api@', 'feeds', 'customer', 'aaa@', 'bbb@', 'hosted@', 'jobs@', 'git@gitlab.com', 'git@github.com']
+IGNORE_FILES = ['mock', 'test', 'Test', 'package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json', 'bugbounty', '.svn', 'inmotionhosting.com', 'marketing', 'attendees']
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
-MAX_THREADS = 5 
+MAX_THREADS = 1
 GH_TOKEN = None
 DEBUG = False
 
@@ -63,29 +63,38 @@ def _get_gh_token():
 
     return args[2]
 
+def _random_wait():
+    random_seconds = random.randint(300, 1000)
+    print(f'\n\Random wait. Sleeping for {random_seconds} seconds.\n\n')
+    time.sleep(random_seconds)
+    return True
+
 def _check_rate_limit(response):
 
-    if response.status_code == 403 or response.status_code == 429:
+    print(response.status_code)
 
-        random_seconds = random.randint(300, 1000)
-        print(f'\n\nGitHub Search API rate limit reached. Sleeping for {random_seconds} seconds.\n\n')
-        time.sleep(random_seconds)
-        return True
+    if response.status_code == 429:
+        return _random_wait()
+        
 
-        # if 'X-RateLimit-Remaining' in response.headers:
-        #     limit_remaining = int(response.headers['X-RateLimit-Remaining'])
-        #     print(f'Rate limit remaining {limit_remaining}')
+    if response.status_code == 403:
 
-        #     if limit_remaining > 0:
-        #         return True
+        if 'X-RateLimit-Remaining' in response.headers:
+            limit_remaining = int(response.headers['X-RateLimit-Remaining'])
+            print(f'Rate limit remaining {limit_remaining}')
 
-        # if 'X-RateLimit-Reset' in response.headers:
-        #     reset_time = int(response.headers['X-RateLimit-Reset'])
-        #     current_time = int(time.time())
-        #     sleep_time = reset_time - current_time + 1
-        #     print(f'\n\nGitHub Search API rate limit reached. Sleeping for {sleep_time} seconds.\n\n')
-        #     time.sleep(sleep_time)
-        #     return True
+            if limit_remaining > 0:
+                return _random_wait()
+
+        if 'X-RateLimit-Reset' in response.headers:
+            reset_time = int(response.headers['X-RateLimit-Reset'])
+            current_time = int(time.time())
+            sleep_time = reset_time - current_time + 1
+            print(f'\n\nGitHub Search API rate limit reached. Sleeping for {sleep_time} seconds.\n\n')
+            time.sleep(sleep_time)
+            return True
+
+        return _random_wait()
     
     return False
 
@@ -107,7 +116,7 @@ def _get_url_result(url, token):
 
         # if rate limit reached
         # Check and wait for x seconds
-        if response.status_code == 403:
+        if response.status_code != 200:
             if _check_rate_limit(response):
                 response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
 
@@ -158,7 +167,7 @@ def _extract_emails(text):
 
     matches = []
 
-    for iterator in re.finditer(EMAIL_REGEX, text):
+    for iterator in re.finditer(PHONE_REGEX, text):
         matches.append(iterator.group())
 
     return matches
@@ -187,13 +196,15 @@ def _search_content(url, content):
 
         for match in matches:
 
-            if domain not in match:
-                continue
+            # # Match input domain with email
+            # if domain not in match:
+            #     continue
 
             if any(value in match for value in IGNORE_EMAILS):
                 continue
             
-            found_email_line = f'{found_email_line}Found Email: {match}\n'
+            if match not in found_email_line:
+                found_email_line = f'{found_email_line}Found Email: {match}\n'
 
         if len(found_email_line) > 0:
 
@@ -256,6 +267,8 @@ def process_page(url, gh_token):
 
 # MAIN CODE
 
+start_time = time.time()
+
 gh_token = _get_gh_token()
 
 domain = _get_domain()
@@ -267,10 +280,15 @@ total_pages = _get_total_pages(url, gh_token)
 if total_pages > GH_MAX_PAGES:
     total_pages = GH_MAX_PAGES
 
+print(f'Processing pages: {total_pages}')
+
 for page_number in range(START_PAGE_NUMBER, total_pages):
     
     _print(page_number)
     print(f'Processing: {url}{page_number}')
 
     process_page(f'{url}{page_number}',gh_token)
+
+
+print("Processed in %s minutes" % ((time.time() - start_time) / 60))
 
