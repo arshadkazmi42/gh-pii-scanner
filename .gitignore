@@ -1,5 +1,6 @@
-run.sh
+*.sh
 results/*
+links/*
 targets.list
 target.list
 

@@ -9,19 +9,17 @@ import time
 import random
 
 
-EMAIL_REGEX = r'[-a-zA-Z\._]+[@](\w|\_|\-|\.)+[.]\w{2,3}'
-PHONE_REGEX = r'\+(\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4,5}'
+URL_REGEX = r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}\b([-a-zA-Z0-9@:%_\+.~#?&\/=]*)'
 
 
 REQUEST_TIMEOUT = 40
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
-SEARCH_QUERY = '"{}"+"email"+NOT+extension%3Amd+NOT+extension%3Atxt+NOT+extension%3Ahtml+NOT+extension%3Aini+NOT+extension%3Aaspx+NOT+extension%3Amarkdown+NOT+extension%3Agemspec+NOT+extension%3Ashtml+NOT+extension%3Arst+NOT+extension%3Acsv+NOT+extension%3Ac+NOT+extension%3Acpp+NOT+extension%3Ah&type=Code&page='
-IGNORE_EMAILS = ['legal', 'support', 'help', 'sales', 'feedback', 'enquiry', 'contact', 'privacy', 'selfservice', 'info@', 'jane.doe', '.com@', 'test@', 'test.com', 'email.com', 'resellers@', '@yourcompany.com', 'resellers', 'example.com', '@domain.com', 'copyright@', 'example@', 'domains@', 'api@', 'feeds', 'customer', 'aaa@', 'bbb@', 'hosted@', 'jobs@', 'git@gitlab.com', 'git@github.com']
-IGNORE_FILES = ['mock', 'test', 'Test', 'package.json', 'AUTHORS', 'change-log', 'setup.py', 'CONTRIBUTORS', 'ChangeLog', 'composer.json', 'pypi_packages', 'commits.json', 'AllVideoPocsFromHackerOne', '.cache.json', 'bugbounty', '.svn', 'inmotionhosting.com', 'marketing', 'attendees']
+SEARCH_QUERY = 'org%3A{}+"http"&type=Code&page='
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
-MAX_THREADS = 1
+MAX_THREADS = 5
+MAX_MATCH_COUNTS = 50
 GH_TOKEN = None
 DEBUG = False
 
@@ -163,20 +161,11 @@ def _write_to_file(line):
     f.close()
 
 
-def _extract_emails(text):
+def _extract_urls(text):
 
     matches = []
 
-    for iterator in re.finditer(EMAIL_REGEX, text):
-        matches.append(iterator.group())
-
-    return matches
-
-def _extract_phone(text):
-
-    matches = []
-
-    for iterator in re.finditer(PHONE_REGEX, text):
+    for iterator in re.finditer(URL_REGEX, text):
         matches.append(iterator.group())
 
     return matches
@@ -185,53 +174,34 @@ def _extract_phone(text):
 def _search_content(url, content):
     try:
 
-        if any(value in url for value in IGNORE_FILES):
-            return False
-
         _print(content)
         result = _decode_base_64(content)
         _print(str(result))
 
         print(f'Searching in {url}')
 
-        matches = _extract_emails(result)
-        phones = _extract_phone(result)
+        matches = _extract_urls(result)
 
-        if len(matches) == 0 and len(phones) == 0:
+        if len(matches) == 0 or len(matches) > MAX_MATCH_COUNTS:
             return False
 
         domain = _get_domain()
 
-        found_email_line = ''
+        found_url_line = ''
 
         for match in matches:
-
-            # # Match input domain with email
-            if domain not in match:
-                continue
-
-            if any(value in match for value in IGNORE_EMAILS):
-                continue
             
-            if match not in found_email_line:
-                found_email_line = f'{found_email_line}Found Email: {match}\n'
+            if match not in found_url_line:
+                found_url_line = f'{found_url_line}Found Link: {match}\n'
 
-        for match in phones:
-
-            if any(value in match for value in IGNORE_EMAILS):
-                continue
-            
-            if match not in found_email_line:
-                found_email_line = f'{found_email_line}Found Phone: {match}\n'
-
-        if len(found_email_line) > 0:
+        if len(found_url_line) > 0:
 
             print_line = f'\n\nFound in {url}'
             print(print_line)
             _write_to_file(print_line)
 
-            _write_to_file(found_email_line)
-            print(found_email_line)
+            _write_to_file(found_url_line)
+            print(found_url_line)
             
             print('\n\n')
 
@@ -252,6 +222,13 @@ def _is_archived(item, gh_token):
 
     return False
 
+def _convert_to_raw_url(html_url):
+
+    html_url = html_url.replace('https://github.com', 'https://raw.githubusercontent.com')
+    html_url = html_url.replace('/blob/', '/')
+
+    return html_url
+
 def _get_and_search_content(item, gh_token):
 
     if _is_archived(item, gh_token):
@@ -262,8 +239,14 @@ def _get_and_search_content(item, gh_token):
         result = _get_url_result(item['url'], gh_token)
         html_url = item['html_url']
 
-        if result and 'content' in result:
-            _search_content(html_url, result['content'])
+        raw_html_url = _convert_to_raw_url(html_url)
+
+        print(f'Found link {raw_html_url}')
+
+        _write_to_file(f'{raw_html_url}')
+
+        # if result and 'content' in result:
+        #     _search_content(html_url, result['content'])
 
 
 def process_page(url, gh_token):
