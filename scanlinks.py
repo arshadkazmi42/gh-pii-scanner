@@ -9,13 +9,14 @@ import time
 import random
 
 
-URL_REGEX = r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}\b([-a-zA-Z0-9@:%_\+.~#?&\/=]*)'
+# URL_REGEX = r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}\b([-a-zA-Z0-9@:%_\+.~#?&\/=]*)'
+URL_REGEX = r'https?:\/\/(www\.)?github.com\b([-a-zA-Z0-9@:%_\+.~#?&\/=]*)'
 
 
 REQUEST_TIMEOUT = 40
 GITHUB_SEARCH_API = 'https://api.github.com/search/code?o=desc&q='
 START_PAGE_NUMBER = 1
-SEARCH_QUERY = 'org%3A{}+"http"&type=Code&page='
+SEARCH_QUERY = 'org%3A{}+"github.com"&type=Code&page='
 GH_RESULTS_PER_PAGE = 30
 GH_MAX_PAGES = 34
 MAX_THREADS = 5
@@ -192,18 +193,18 @@ def _search_content(url, content):
         for match in matches:
             
             if match not in found_url_line:
-                found_url_line = f'{found_url_line}Found Link: {match}\n'
+                found_url_line = f'{found_url_line}{match}\n'
 
         if len(found_url_line) > 0:
 
-            print_line = f'\n\nFound in {url}'
+            print_line = f'\nFound in {url}'
             print(print_line)
             _write_to_file(print_line)
 
             _write_to_file(found_url_line)
             print(found_url_line)
             
-            print('\n\n')
+            print('\n')
 
     except Exception as e:
         print(e)
@@ -241,12 +242,12 @@ def _get_and_search_content(item, gh_token):
 
         raw_html_url = _convert_to_raw_url(html_url)
 
-        print(f'Found link {raw_html_url}')
+        # print(f'Found link {raw_html_url}')
 
-        _write_to_file(f'{raw_html_url}')
+        # _write_to_file(f'{raw_html_url}')
 
-        # if result and 'content' in result:
-        #     _search_content(html_url, result['content'])
+        if result and 'content' in result:
+            _search_content(html_url, result['content'])
 
 
 def process_page(url, gh_token):
