@@ -1,0 +1,3 @@
+- Get github account urls from list of github urls
+
+cat filename.txt | grep -v Found | grep -v Processing | awk -F[/] '{print $1"//"$2$3"/"$4}' | sort | uniq | grep -v ///
